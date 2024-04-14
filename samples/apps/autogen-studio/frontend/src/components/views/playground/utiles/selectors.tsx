@@ -1,17 +1,19 @@
 import { Select, message } from "antd";
 import * as React from "react";
-import { LoadingOverlay } from "../../atoms";
-import { IFlowConfig, IStatus } from "../../types";
-import { fetchJSON, getServerUrl } from "../../utils";
-import { appContext } from "../../../hooks/provider";
+import { LoadingOverlay } from "../../../atoms";
+import { IWorkflow, IStatus } from "../../../types";
+import { fetchJSON, getServerUrl } from "../../../utils";
+import { appContext } from "../../../../hooks/provider";
 import { Link } from "gatsby";
 
 const WorkflowSelector = ({
   workflow,
   setWorkflow,
+  disabled,
 }: {
-  workflow: IFlowConfig | null;
-  setWorkflow: (workflow: IFlowConfig) => void;
+  workflow: IWorkflow | null;
+  setWorkflow: (workflow: IWorkflow) => void;
+  disabled?: boolean;
 }) => {
   const [error, setError] = React.useState<IStatus | null>({
     status: true,
@@ -19,7 +21,7 @@ const WorkflowSelector = ({
   });
 
   const [loading, setLoading] = React.useState(false);
-  const [workflows, setWorkflows] = React.useState<IFlowConfig[]>([]);
+  const [workflows, setWorkflows] = React.useState<IWorkflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = React.useState<number>(0);
 
   const { user } = React.useContext(appContext);
@@ -73,6 +75,7 @@ const WorkflowSelector = ({
 
         {workflows && workflows.length > 0 && (
           <Select
+            disabled={disabled}
             className="w-full"
             value={workflows[selectedWorkflow].name}
             onChange={(value: any) => {

@@ -406,7 +406,6 @@ async def create_message(message: Message):
         folders["files_static_root"], "user", md5_hash(message.user_id)
     )
     os.makedirs(user_dir, exist_ok=True)
-
     workflow = dbmanager.get(Workflow, filters={"id": message.workflow_id})[0]
 
     try:

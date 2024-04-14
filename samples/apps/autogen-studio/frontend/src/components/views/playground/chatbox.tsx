@@ -14,13 +14,7 @@ import {
   Tooltip,
 } from "antd";
 import * as React from "react";
-import {
-  IChatMessage,
-  IChatSession,
-  IFlowConfig,
-  IMessage,
-  IStatus,
-} from "../../types";
+import { IChatMessage, IChatSession, IMessage, IStatus } from "../../types";
 import { examplePrompts, getServerUrl, guid } from "../../utils";
 import { appContext } from "../../../hooks/provider";
 import MetaDataView from "./metadata";

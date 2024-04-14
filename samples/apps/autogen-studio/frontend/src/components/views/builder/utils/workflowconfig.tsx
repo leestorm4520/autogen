@@ -28,7 +28,7 @@ export const WorkflowViewConfig = ({
   const updateFlowConfig = (key: string, value: string) => {
     // When an updatedFlowConfig is created using localWorkflow, if the contents of FlowConfigViewer Modal are changed after the Agent Specification Modal is updated, the updated contents of the Agent Specification Modal are not saved. Fixed to localWorkflow->flowConfig. Fixed a bug.
     const updatedFlowConfig = { ...workflow, [key]: value };
-    console.log("updatedFlowConfig: ", updatedFlowConfig);
+
     setLocalWorkflow(updatedFlowConfig);
     setWorkflow(updatedFlowConfig);
     setControlChanged(true);
