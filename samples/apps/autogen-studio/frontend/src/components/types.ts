@@ -20,7 +20,7 @@ export interface IStatus {
 export interface IChatMessage {
   text: string;
   sender: "user" | "bot";
-  metadata?: any;
+  meta?: any;
   msg_id: string;
 }
 

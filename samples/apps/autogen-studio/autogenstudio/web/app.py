@@ -15,9 +15,9 @@ from openai import OpenAIError
 from ..version import VERSION, APP_NAME
 
 
-from ..models.db import Agent, DBResponseModel, Message, Model, Session, Skill, Workflow
+from ..models.db import Agent, Response, Message, Model, Session, Skill, Workflow
 from ..models.dbmanager import DBManager
-from ..utils import md5_hash, init_app_folders, dbutils, test_model
+from ..utils import md5_hash, init_app_folders, dbutils, test_model, workflow_from_id
 from ..chatmanager import AutoGenChatManager, WebSocketConnectionManager
 
 
@@ -124,8 +124,8 @@ def create_entity(model: Any, model_class: Any, filters: dict = None):
     """Create a new entity"""
     model = check_and_cast_datetime_fields(model)
     try:
-        response: DBResponseModel = dbmanager.upsert(model)
-        return response.model_dump()
+        response: Response = dbmanager.upsert(model)
+        return response.model_dump(mode="json")
 
     except Exception as ex_error:
         print(ex_error)
@@ -406,24 +406,18 @@ async def create_message(message: Message):
         folders["files_static_root"], "user", md5_hash(message.user_id)
     )
     os.makedirs(user_dir, exist_ok=True)
-    workflow = dbmanager.get(Workflow, filters={"id": message.workflow_id})[0]
-
+    workflow = workflow_from_id(message.workflow_id, dbmanager=dbmanager)
     try:
         agent_response: Message = managers["chat"].chat(
             message=message,
             history=user_message_history,
             user_dir=user_dir,
-            flow_config=workflow,
+            workflow=workflow,
             connection_id=message.connection_id,
         )
 
-        messages = dbmanager.upsert(agent_response)
-        response = {
-            "status": True,
-            "message": "Success - Message processed successfully",
-            "data": messages,
-        }
-        return response
+        response: Response = dbmanager.upsert(agent_response)
+        return response.model_dump(mode="json")
     except Exception as ex_error:
         print(traceback.format_exc())
         return {

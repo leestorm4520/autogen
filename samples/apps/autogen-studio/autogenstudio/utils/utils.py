@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 from typing import List, Dict, Tuple, Union
 import os
 import shutil
@@ -7,14 +8,9 @@ from pathlib import Path
 import re
 import autogen
 from autogen.oai.client import OpenAIWrapper
-from ..datamodel import (
-    AgentConfig,
-    AgentFlowSpec,
-    AgentWorkFlowConfig,
-    LLMConfig,
-    Skill,
-)
-from ..models.db import Model
+
+from ..models.db import Agent, AgentType, Model, Workflow, WorkflowAgentLink, Skill
+from ..models.dbmanager import DBManager
 from dotenv import load_dotenv
 from ..version import APP_NAME
 
@@ -330,57 +326,6 @@ def delete_files_in_folder(folders: Union[str, List[str]]) -> None:
                 print(f"Failed to delete {path}. Reason: {e}")
 
 
-def get_default_agent_config(work_dir: str) -> AgentWorkFlowConfig:
-    """
-    Get a default agent flow config .
-    """
-
-    llm_config = LLMConfig(
-        config_list=[{"model": "gpt-4"}],
-        temperature=0,
-    )
-
-    USER_PROXY_INSTRUCTIONS = """If the request has been addressed sufficiently, summarize the answer and end with the word TERMINATE. Otherwise, ask a follow-up question.
-        """
-
-    userproxy_spec = AgentFlowSpec(
-        type="userproxy",
-        config=AgentConfig(
-            name="user_proxy",
-            human_input_mode="NEVER",
-            system_message=USER_PROXY_INSTRUCTIONS,
-            code_execution_config={
-                "work_dir": work_dir,
-                "use_docker": False,
-            },
-            max_consecutive_auto_reply=10,
-            llm_config=llm_config,
-            is_termination_msg=lambda x: x.get("content", "")
-            .rstrip()
-            .endswith("TERMINATE"),
-        ),
-    )
-
-    assistant_spec = AgentFlowSpec(
-        type="assistant",
-        config=AgentConfig(
-            name="primary_assistant",
-            system_message=autogen.AssistantAgent.DEFAULT_SYSTEM_MESSAGE,
-            llm_config=llm_config,
-        ),
-    )
-
-    flow_config = AgentWorkFlowConfig(
-        name="default",
-        sender=userproxy_spec,
-        receiver=assistant_spec,
-        type="default",
-        description="Default agent flow config",
-    )
-
-    return flow_config
-
-
 def extract_successful_code_blocks(messages: List[Dict[str, str]]) -> List[str]:
     """
     Parses through a list of messages containing code blocks and execution statuses,
@@ -439,7 +384,43 @@ def test_model(model: Model):
     return response.choices[0].message.content
 
 
-# summarize_chat_history (messages, model) .. returns a summary of the chat history
+def workflow_from_id(workflow_id: int, dbmanager: DBManager):
+    workflow = dbmanager.get(Workflow, filters={"id": workflow_id})
+    if not workflow or len(workflow) == 0:
+        return {}
+    workflow = workflow[0].model_dump(mode="json")
+    workflow_agent_links = dbmanager.get(
+        WorkflowAgentLink, filters={"workflow_id": workflow_id}
+    )
+
+    def dump_agent(agent: Agent):
+        exclude = []
+        if agent.type != AgentType.groupchat:
+            exclude = [
+                "admin_name",
+                "messages",
+                "max_round",
+                "admin_name",
+                "speaker_selection_method",
+                "allow_repeat_speaker",
+            ]
+        return agent.model_dump(warnings=False, mode="json", exclude=exclude)
+
+    def get_agent(agent_id):
+        agent: Agent = dbmanager.get(Agent, filters={"id": agent_id})[0]
+        agent_dict = dump_agent(agent)
+        agent_dict["skills"] = [
+            Skill.model_validate(skill.model_dump(mode="json"))
+            for skill in agent.skills
+        ]
+        agent_dict["models"] = [model.model_dump(mode="json") for model in agent.models]
+        agent_dict["agents"] = [get_agent(agent.id) for agent in agent.agents]
+        return agent_dict
+
+    for link in workflow_agent_links:
+        agent_dict = get_agent(link.agent_id)
+        workflow[link.agent_type] = agent_dict
+    return workflow
 
 
 def summarize_chat_history(task: str, messages: List[Dict[str, str]], model: Model):

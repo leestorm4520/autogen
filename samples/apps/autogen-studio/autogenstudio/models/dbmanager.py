@@ -7,7 +7,7 @@ from .db import (
     AgentLink,
     AgentModelLink,
     AgentSkillLink,
-    DBResponseModel,
+    Response,
     Model,
     Skill,
     Workflow,
@@ -56,7 +56,7 @@ class DBManager:
             logger.error("Error while upserting %s", e)
             status = False
 
-        response = DBResponseModel(
+        response = Response(
             message=f"{model_class.__name__} Updated Successfully "
             if existing_model
             else f"{model_class.__name__} Created Successfully",
@@ -81,8 +81,12 @@ class DBManager:
                 getattr(model_class, col) == value for col, value in filters.items()
             ]
             statement = select(model_class).where(and_(*conditions))
+
+            if hasattr(model_class, "created_at"):
+                statement = statement.order_by(model_class.created_at.desc())
         else:
             statement = select(model_class)
+
         if return_json:
             return [
                 self._model_to_dict(row) for row in self.session.exec(statement).all()
@@ -119,7 +123,7 @@ class DBManager:
             logger.error("Error while deleting: %s", e)
             status_message = f"Error while deleting: {e}"
             status = False
-        response = DBResponseModel(
+        response = Response(
             message=status_message,
             status=status,
             data=None,
@@ -162,7 +166,7 @@ class DBManager:
                 linked_entities = agent.skills
             elif link_type == "agent_agent":
                 agent = self.get(Agent, filters={"id": primary_id})[0]
-                linked_entities = agent.children
+                linked_entities = agent.agents
             elif link_type == "workflow_agent":
                 linked_entities = self.session.exec(
                     select(Agent)
@@ -179,7 +183,7 @@ class DBManager:
         if return_json:
             linked_entities = [self._model_to_dict(row) for row in linked_entities]
 
-        response = DBResponseModel(
+        response = Response(
             message=status_message,
             status=status,
             data=linked_entities,
@@ -193,7 +197,7 @@ class DBManager:
         primary_id: int,
         secondary_id: int,
         agent_type: Optional[str] = None,
-    ) -> DBResponseModel:
+    ) -> Response:
         """
         Link two entities together.
 
@@ -204,7 +208,7 @@ class DBManager:
             agent_type (Optional[str]): The type of agent, e.g., "sender" or receiver.
 
         Returns:
-            DBResponseModel: The response of the linking operation, including success status and message.
+            Response: The response of the linking operation, including success status and message.
         """
 
         # TBD verify that is creator of the primary entity being linked
@@ -237,7 +241,7 @@ class DBManager:
                             )
                         ).first()
                         if existing_link:  # link already exists
-                            return DBResponseModel(
+                            return Response(
                                 message=(
                                     f"{secondary_model.__class__.__name__} already linked "
                                     f"to {primary_model.__class__.__name__}"
@@ -261,11 +265,11 @@ class DBManager:
                         existing_link = self.session.exec(
                             select(AgentLink).where(
                                 AgentLink.parent_id == primary_id,
-                                AgentLink.child_id == secondary_id,
+                                AgentLink.agent_id == secondary_id,
                             )
                         ).first()
                         if existing_link:
-                            return DBResponseModel(
+                            return Response(
                                 message=(
                                     f"{secondary_model.__class__.__name__} already linked "
                                     f"to {primary_model.__class__.__name__}"
@@ -273,7 +277,7 @@ class DBManager:
                                 status=False,
                             )
                         else:
-                            primary_model.children.append(secondary_model)
+                            primary_model.agents.append(secondary_model)
 
                 elif link_type == "agent_skill":
                     primary_model = self.session.exec(
@@ -294,7 +298,7 @@ class DBManager:
                             )
                         ).first()
                         if existing_link:
-                            return DBResponseModel(
+                            return Response(
                                 message=(
                                     f"{secondary_model.__class__.__name__} already linked "
                                     f"to {primary_model.__class__.__name__}"
@@ -323,7 +327,7 @@ class DBManager:
                             )
                         ).first()
                         if existing_link:
-                            return DBResponseModel(
+                            return Response(
                                 message=(
                                     f"{secondary_model.__class__.__name__} already linked "
                                     f"to {primary_model.__class__.__name__}"
@@ -352,7 +356,7 @@ class DBManager:
                 status = False
                 status_message = f"Error while linking due to an exception: {e}"
 
-        response = DBResponseModel(
+        response = Response(
             message=status_message,
             status=status,
         )
@@ -365,7 +369,7 @@ class DBManager:
         primary_id: int,
         secondary_id: int,
         agent_type: Optional[str] = None,
-    ) -> DBResponseModel:
+    ) -> Response:
         """
         Unlink two entities.
 
@@ -376,7 +380,7 @@ class DBManager:
             agent_type (Optional[str]): The type of agent, e.g., "sender" or receiver.
 
         Returns:
-            DBResponseModel: The response of the unlinking operation, including success status and message.
+            Response: The response of the unlinking operation, including success status and message.
         """
         status = True
         status_message = ""
@@ -384,7 +388,7 @@ class DBManager:
         if link_type not in valid_link_types:
             status = False
             status_message = f"Invalid link type: {link_type}. Valid link types are: {valid_link_types}"
-            return DBResponseModel(message=status_message, status=status)
+            return Response(message=status_message, status=status)
 
         try:
             if link_type == "agent_model":
@@ -405,7 +409,7 @@ class DBManager:
                 existing_link = self.session.exec(
                     select(AgentLink).where(
                         AgentLink.parent_id == primary_id,
-                        AgentLink.child_id == secondary_id,
+                        AgentLink.agent_id == secondary_id,
                     )
                 ).first()
             elif link_type == "workflow_agent":
@@ -431,4 +435,4 @@ class DBManager:
             status = False
             status_message = f"Error while unlinking due to an exception: {e}"
 
-        return DBResponseModel(message=status_message, status=status)
+        return Response(message=status_message, status=status)

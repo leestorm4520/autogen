@@ -26,6 +26,7 @@ import {
 } from "./selectors";
 import { IAgent } from "../../../types";
 import { useConfigStore } from "../../../../hooks/store";
+import TextArea from "antd/es/input/TextArea";
 
 const { useToken } = theme;
 
@@ -63,8 +64,9 @@ export const AgentConfigView = ({
     setError(null);
     setLoading(true);
     // const fetch;
-    agent.user_id = user?.email;
 
+    console.log("agent", agent);
+    agent.user_id = user?.email;
     const payLoad = {
       method: "POST",
       headers: {
@@ -206,6 +208,23 @@ export const AgentConfigView = ({
                       // { label: "ALWAYS", value: "ALWAYS" },
                     ] as any
                   }
+                />
+              }
+            />
+
+            <ControlRowView
+              title="System Message"
+              className="mt-4"
+              description="Free text to control agent behavior"
+              value={agent.config.system_message}
+              control={
+                <TextArea
+                  className="mt-2 w-full"
+                  value={agent.config.system_message}
+                  rows={3}
+                  onChange={(e) => {
+                    onControlChange(e.target.value, "system_message");
+                  }}
                 />
               }
             />

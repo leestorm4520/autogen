@@ -83,6 +83,17 @@ class Skill(SQLModel, table=True):
     )
 
 
+class LLMConfig(SQLModel, table=False):
+    """Data model for LLM Config for AutoGen"""
+
+    config_list: List[Any] = Field(default_factory=list)
+    temperature: float = 0
+    cache_seed: Optional[Union[int, None]] = None
+    timeout: Optional[int] = None
+    max_tokens: Optional[int] = None
+    extra_body: Optional[dict] = None
+
+
 class Model(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(
@@ -120,11 +131,13 @@ class AgentConfig(SQLModel, table=False):
     )
     default_auto_reply: Optional[str] = ""
     description: Optional[str] = None
+    llm_config: Optional[Union[LLMConfig, bool]] = Field(
+        default=False, sa_column=Column(JSON)
+    )
 
-    agents: Optional[List["Agent"]] = Field(default_factory=list)
     admin_name: Optional[str] = "Admin"
     messages: Optional[List[Dict]] = Field(default_factory=list)
-    max_round: Optional[int] = 10
+    max_round: Optional[int] = 100
     admin_name: Optional[str] = "Admin"
     speaker_selection_method: Optional[str] = "auto"
     allow_repeat_speaker: Optional[Union[bool, List["AgentConfig"]]] = True
@@ -155,7 +168,7 @@ class AgentLink(SQLModel, table=True):
     parent_id: Optional[int] = Field(
         default=None, foreign_key="agent.id", primary_key=True
     )
-    child_id: Optional[int] = Field(
+    agent_id: Optional[int] = Field(
         default=None, foreign_key="agent.id", primary_key=True
     )
 
@@ -185,19 +198,19 @@ class Agent(SQLModel, table=True):
         link_model=WorkflowAgentLink, back_populates="agents"
     )
     parents: List["Agent"] = Relationship(
-        back_populates="children",
+        back_populates="agents",
         link_model=AgentLink,
         sa_relationship_kwargs=dict(
-            primaryjoin="Agent.id==AgentLink.child_id",
+            primaryjoin="Agent.id==AgentLink.agent_id",
             secondaryjoin="Agent.id==AgentLink.parent_id",
         ),
     )
-    children: List["Agent"] = Relationship(
+    agents: List["Agent"] = Relationship(
         back_populates="parents",
         link_model=AgentLink,
         sa_relationship_kwargs=dict(
             primaryjoin="Agent.id==AgentLink.parent_id",
-            secondaryjoin="Agent.id==AgentLink.child_id",
+            secondaryjoin="Agent.id==AgentLink.agent_id",
         ),
     )
 
@@ -238,7 +251,13 @@ class Workflow(SQLModel, table=True):
     )
 
 
-class DBResponseModel(SQLModel):
+class Response(SQLModel):
     message: str
     status: bool
     data: Optional[Any] = None
+
+
+class SocketMessage(SQLModel, table=False):
+    connection_id: str
+    data: Dict[str, Any]
+    type: str

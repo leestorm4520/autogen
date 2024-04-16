@@ -87,22 +87,24 @@ const ChatBox = ({
     chatMaxHeight = pageHeight - 310 + "px";
   }
 
+  const parseMessage = (message: any) => {
+    let meta;
+    try {
+      meta = JSON.parse(message.meta);
+    } catch (e) {
+      meta = message.meta;
+    }
+    const msg: IChatMessage = {
+      text: message.content,
+      sender: message.role === "user" ? "user" : "bot",
+      meta: meta,
+      msg_id: message.msg_id,
+    };
+    return msg;
+  };
+
   const parseMessages = (messages: any) => {
-    return messages?.map((message: any) => {
-      let meta;
-      try {
-        meta = JSON.parse(message.metadata);
-      } catch (e) {
-        meta = message.metadata;
-      }
-      const msg: IChatMessage = {
-        text: message.content,
-        sender: message.role === "user" ? "user" : "bot",
-        metadata: meta,
-        msg_id: message.msg_id,
-      };
-      return msg;
-    });
+    return messages?.map(parseMessage);
   };
 
   React.useEffect(() => {
@@ -133,12 +135,12 @@ const ChatBox = ({
     const css = isUser ? "bg-accent text-white  " : "bg-light";
     // console.log("message", message);
     let hasMeta = false;
-    if (message.metadata) {
+    if (message.meta) {
       hasMeta =
-        message.metadata.code !== null ||
-        message.metadata.images?.length > 0 ||
-        message.metadata.files?.length > 0 ||
-        message.metadata.scripts?.length > 0;
+        message.meta.code !== null ||
+        message.meta.images?.length > 0 ||
+        message.meta.files?.length > 0 ||
+        message.meta.scripts?.length > 0;
     }
 
     let items: MenuProps["items"] = [];
@@ -228,9 +230,9 @@ const ChatBox = ({
                 />
               </div>
             )}
-            {message.metadata && (
+            {message.meta && (
               <div className="">
-                <MetaDataView metadata={message.metadata} />
+                <MetaDataView metadata={message.meta} />
               </div>
             )}
           </div>
@@ -365,10 +367,13 @@ const ChatBox = ({
 
   const processAgentResponse = (data: any) => {
     if (data && data.status) {
-      const updatedMessages = parseMessages(data.data);
+      // const updatedMessages = parseMessages(data.data);
+      const message = parseMessage(data.data);
+      const messageHolder = Object.assign([], messages);
+      messageHolder.push(message);
       setTimeout(() => {
         setLoading(false);
-        setMessages(updatedMessages);
+        setMessages(messageHolder);
       }, 2000);
     } else {
       console.log("error", data);
